@@ -1,0 +1,234 @@
+# 📋 CryptoFind Backend Implementation Requirements
+# Documentation for Cursor Implementation
+
+## 🎯 Overview
+
+You need to implement 4 core backend components to make the CryptoFind frontend functional. The frontend is already built and expects specific API endpoints and data structures.
+
+## 🔧 Component 1: URL Parser & Product Extractor
+
+### What it does:
+- Takes any e-commerce URL as input
+- Extracts product information from the webpage
+- Returns structured product data
+
+### API Endpoint to Create:
+- POST /api/scrape
+- Input: { "url": "https://amazon.com/product/..." }
+- Output: { "product": ProductData }
+
+### ProductData Structure:
+interface ProductData {
+  title: string
+  price: number
+  currency: string
+  images: string[]
+  description: string
+  brand?: string
+  category: string
+  specifications: Record<string, string>
+  sourceUrl: string
+}
+
+### Requirements:
+- Support major platforms: Amazon, eBay, Shopify stores
+- Handle anti-bot measures (user agents, delays)
+- Extract data from HTML selectors and JSON-LD structured data
+- Validate URLs before processing
+- Return error messages for failed extractions
+
+### Suggested Tools:
+- Puppeteer or Playwright for web scraping
+- Cheerio for HTML parsing
+- Platform-specific selectors for each major site
+
+## 🔧 Component 2: Product Matching Engine
+
+### What it does:
+- Takes extracted product data
+- Finds similar products from crypto-accepting merchants
+- Calculates similarity scores
+- Returns ranked matches
+
+### API Endpoint to Create:
+- POST /api/search
+- Input: { "url": "product-url" }
+- Output: { "originalProduct": ProductData, "matches": MatchingResult[] }
+
+### MatchingResult Structure:
+interface MatchingResult {
+  product: ProductData
+  merchant: MerchantData
+  similarity: number (0-100)
+  priceComparison: {
+    original: number
+    crypto: number
+    savings: number
+  }
+  cryptoPrice: Record<string, number> // {BTC: 0.001, ETH: 0.02}
+}
+
+### Requirements:
+- Search database of crypto merchant products
+- Calculate similarity using text matching and/or AI
+- Filter results by minimum similarity threshold (70%+)
+- Sort by similarity score
+- Include price comparisons and crypto conversions
+- Return top 10 matches maximum
+
+### Matching Strategies:
+- Exact brand + model matching (highest priority)
+- Semantic text similarity using AI embeddings
+- Category-based matching with price ranges
+- Image similarity (advanced feature)
+
+## 🔧 Component 3: Crypto Price Conversion
+
+### What it does:
+- Fetches current cryptocurrency prices
+- Converts USD amounts to crypto equivalents
+- Caches rates to avoid API limits
+
+### API Endpoint to Create:
+- GET /api/crypto-rates
+- Output: { "BTC": 65000, "ETH": 3500, "LTC": 95, "BCH": 420 }
+
+### Service Functions Needed:
+- getCurrentRates() - Fetch latest crypto prices
+- convertUsdToCrypto(amount) - Convert USD to crypto amounts
+- convertCryptoToUsd(amount, crypto) - Convert crypto to USD
+
+### Requirements:
+- Support BTC, ETH, LTC, BCH minimum
+- Use free crypto price API (CoinGecko recommended)
+- Cache rates for 5-10 minutes to avoid rate limits
+- Handle API failures with fallback rates
+- Return precise decimal amounts for crypto
+
+### Data Source:
+- CoinGecko API (free tier): https://api.coingecko.com/api/v3/simple/price
+- Alternative: CoinMarketCap API
+
+## 🔧 Component 4: Database Integration
+
+### What it does:
+- Stores crypto merchant information
+- Stores product catalogs from crypto merchants
+- Provides search and query functions
+
+### Database Schema Required:
+
+#### Merchants Table:
+- id, name, domain, logo_url
+- supported_cryptos (JSON array)
+- payment_processor, commission_rate
+- api_endpoint, status, created_at
+
+#### Products Table:
+- id, merchant_id, external_id
+- title, description, price, currency
+- images (JSON array), category, brand
+- specifications (JSON), availability
+- product_url, last_updated
+
+#### Search Cache Table (Optional):
+- query_hash, original_product (JSON)
+- results (JSON), expires_at, created_at
+
+### Functions to Implement:
+- getMerchantProducts(searchQuery) - Search products by text
+- addMerchant(merchantData) - Add new crypto merchant
+- addProduct(productData) - Add/update product
+- getActiveMerchants() - Get all active merchants
+
+### Initial Data Needed:
+Seed database with known crypto merchants:
+- Newegg (BTC, ETH, LTC via BitPay)
+- Overstock (BTC native)
+- Microsoft Store (BTC via BitPay)
+- AT&T (BTC via BitPay)
+- Shopify stores with crypto plugins
+
+## 🔗 Integration Points
+
+### Frontend Expects:
+1. User enters URL on homepage
+2. POST /api/search with the URL
+3. Loading state while processing
+4. Results page shows matches from API response
+
+### API Flow:
+1. /api/search receives URL
+2. Calls /api/scrape internally to extract product
+3. Queries database for similar products
+4. Calls crypto price service for conversions
+5. Returns complete results to frontend
+
+### Error Handling:
+- Invalid URLs → 400 error with message
+- Scraping failures → 500 error with fallback
+- No matches found → Empty results array
+- API rate limits → Cached/fallback data
+
+## 🚀 Implementation Priority
+
+### Phase 1 (MVP):
+1. Basic URL scraping for Amazon/Shopify
+2. Simple text-based product matching
+3. Crypto price conversion
+4. Manual merchant database (10-20 stores)
+
+### Phase 2 (Enhanced):
+1. AI-powered similarity matching
+2. Support for more e-commerce platforms
+3. Automated merchant product syncing
+4. Advanced filtering and sorting
+
+### Phase 3 (Production):
+1. Rate limiting and caching
+2. Error monitoring and logging
+3. Performance optimization
+4. Comprehensive merchant network
+
+## 📊 Success Metrics
+
+- Successfully extract product data from 80%+ of URLs
+- Find relevant matches for 70%+ of searches
+- Response time under 3 seconds for search
+- Support 50+ crypto merchants initially
+
+## 🛠 Technical Implementation Notes
+
+### Dependencies You'll Need:
+- Database: PostgreSQL with Prisma ORM
+- Web Scraping: Puppeteer or Playwright + Cheerio
+- AI: OpenAI API for product matching
+- Crypto Prices: CoinGecko API
+- Caching: Redis (optional but recommended)
+
+### Environment Variables Required:
+- DATABASE_URL
+- OPENAI_API_KEY (for AI matching)
+- REDIS_URL (for caching)
+- NEXTAUTH_URL
+
+### File Structure to Create:
+app/api/scrape/route.ts
+app/api/search/route.ts
+app/api/crypto-rates/route.ts
+lib/scrapers/product-parser.ts
+lib/matching/product-matcher.ts
+lib/crypto/price-service.ts
+lib/db/index.ts
+lib/db/merchants.ts
+prisma/schema.prisma
+scripts/seed-merchants.ts
+
+### Testing Strategy:
+1. Test each API endpoint individually
+2. Test with real product URLs from major sites
+3. Verify database operations work correctly
+4. Test error handling for edge cases
+5. Performance test with multiple concurrent requests
+
+This documentation provides the complete roadmap for implementing the CryptoFind backend functionality. Each component is designed to be modular and can be implemented and tested independently.
